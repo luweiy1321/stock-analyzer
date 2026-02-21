@@ -154,7 +154,7 @@ st.title("📈 实时股票监控")
 # 顶部导航链接
 col1, col2, col3 = st.columns([3, 1, 1])
 with col2:
-    st.link_button("📊 批量分析", "http://localhost:8503", use_container_width=True)
+    st.link_button("📊 批量分析", "https://mytool.streamlit.app/", use_container_width=True)
 with col3:
     if st.button("🏠 刷新", use_container_width=True):
         st.rerun()
