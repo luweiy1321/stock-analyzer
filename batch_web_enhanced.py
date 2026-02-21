@@ -55,6 +55,16 @@ if not st.session_state['authenticated']:
     st.stop()  # 停止执行，不显示后续内容
 
 st.title("📊 批量股票分析系统")
+
+# 顶部导航链接
+col1, col2, col3 = st.columns([3, 1, 1])
+with col2:
+    if st.button("📈 实时监控", use_container_width=True):
+        st.link_button("📈 实时监控", "http://localhost:8502", use_container_width=True)
+with col3:
+    if st.button("🏠 刷新", use_container_width=True):
+        st.rerun()
+
 st.markdown("选择要分析的股票，点击开始批量分析")
 
 # 股票池 - A股（300只热门股票，带行业分类）

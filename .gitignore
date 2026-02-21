@@ -1,0 +1,32 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+.venv
+
+# 环境变量
+.env
+
+# 数据文件
+data/*.csv
+data/*.xlsx
+logs/*.log
+
+# 图表文件
+data/*.png
+data/*.jpg
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# 系统文件
+.DS_Store
+Thumbs.db
