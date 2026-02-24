@@ -15,7 +15,7 @@ from plotly.subplots import make_subplots
 from datetime import datetime, timedelta
 import time
 
-from data_source import YFinanceDataSource
+from data_source import AKShareDataSource
 from analysis import SignalAnalyzer
 from config import SIGNAL_CONFIG, INDICATORS
 
@@ -260,7 +260,7 @@ with st.sidebar:
                     # 如果没有提供名称，尝试自动获取
                     if not new_stock_name:
                         try:
-                            temp_source = YFinanceDataSource()
+                            temp_source = AKShareDataSource()
                             new_stock_name = get_stock_name(new_stock_code, temp_source)
                         except Exception:
                             new_stock_name = new_stock_code
@@ -396,7 +396,7 @@ try:
     INDICATORS["MA"]["long_period"] = ma_long
 
     # 获取数据
-    data_source = YFinanceDataSource()
+    data_source = AKShareDataSource()
     analyzer = SignalAnalyzer()
 
     end_date = datetime.now().strftime('%Y-%m-%d')
