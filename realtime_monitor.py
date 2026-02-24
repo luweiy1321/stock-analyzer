@@ -3,6 +3,7 @@
 """
 import sys
 import os
+import json
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
@@ -17,6 +18,9 @@ import time
 from data_source import YFinanceDataSource
 from analysis import SignalAnalyzer
 from config import SIGNAL_CONFIG, INDICATORS
+
+# 自选股票文件路径
+WATCHLIST_FILE = Path(__file__).parent / "data" / "watchlist.json"
 
 # 页面配置
 st.set_page_config(
@@ -128,9 +132,12 @@ if 'rt_refresh_interval' not in st.session_state:
     st.session_state['rt_refresh_interval'] = 30  # 默认30秒
 if 'rt_show_alert' not in st.session_state:
     st.session_state['rt_show_alert'] = False
+if 'rt_watchlist' not in st.session_state:
+    st.session_state['rt_watchlist'] = None
 
-# 热门股票列表
-POPULAR_STOCKS = {
+
+# 默认自选股票列表
+DEFAULT_WATCHLIST = {
     '000001.SZ': '平安银行',
     '000002.SZ': '万科A',
     '600519.SH': '贵州茅台',
@@ -147,6 +154,51 @@ POPULAR_STOCKS = {
     '600887.SH': '伊利股份',
     '300059.SZ': '东方财富',
 }
+
+
+def load_watchlist():
+    """加载自选股票列表"""
+    try:
+        if WATCHLIST_FILE.exists():
+            with open(WATCHLIST_FILE, 'r', encoding='utf-8') as f:
+                return json.load(f)
+        else:
+            # 确保目录存在
+            WATCHLIST_FILE.parent.mkdir(parents=True, exist_ok=True)
+            # 保存默认列表
+            save_watchlist(DEFAULT_WATCHLIST)
+            return DEFAULT_WATCHLIST.copy()
+    except Exception as e:
+        st.error(f"加载自选股票列表失败: {e}")
+        return DEFAULT_WATCHLIST.copy()
+
+
+def save_watchlist(watchlist):
+    """保存自选股票列表"""
+    try:
+        WATCHLIST_FILE.parent.mkdir(parents=True, exist_ok=True)
+        with open(WATCHLIST_FILE, 'w', encoding='utf-8') as f:
+            json.dump(watchlist, f, ensure_ascii=False, indent=2)
+        return True
+    except Exception as e:
+        st.error(f"保存自选股票列表失败: {e}")
+        return False
+
+
+def get_stock_name(stock_code, data_source=None):
+    """获取股票名称"""
+    try:
+        if data_source:
+            info = data_source.get_stock_info(stock_code)
+            return info.get('name', stock_code)
+        return stock_code
+    except Exception:
+        return stock_code
+
+
+# 加载自选股票列表
+if st.session_state['rt_watchlist'] is None:
+    st.session_state['rt_watchlist'] = load_watchlist()
 
 # 页面标题
 st.title("📈 实时股票监控")
@@ -166,17 +218,19 @@ with st.sidebar:
     st.header("⚙️ 控制面板")
 
     # 股票选择
-    stock_input_method = st.radio("选择股票方式", ["从热门股票选择", "手动输入代码"])
+    stock_input_method = st.radio("选择股票方式", ["从自选股选择", "手动输入代码"])
 
-    if stock_input_method == "从热门股票选择":
+    if stock_input_method == "从自选股选择":
+        watchlist = st.session_state['rt_watchlist']
         selected_stock = st.selectbox(
             "选择股票",
-            options=list(POPULAR_STOCKS.keys()),
-            format_func=lambda x: f"{POPULAR_STOCKS[x]} ({x})",
-            index=list(POPULAR_STOCKS.keys()).index(st.session_state['rt_selected_stock']) if st.session_state['rt_selected_stock'] in POPULAR_STOCKS else 0
+            options=list(watchlist.keys()),
+            format_func=lambda x: f"{watchlist[x]} ({x})",
+            index=list(watchlist.keys()).index(st.session_state['rt_selected_stock']) if st.session_state['rt_selected_stock'] in watchlist else 0
         )
     else:
-        default_code = st.session_state['rt_selected_stock'] if st.session_state['rt_selected_stock'] not in POPULAR_STOCKS else '000001.SZ'
+        watchlist = st.session_state['rt_watchlist']
+        default_code = st.session_state['rt_selected_stock'] if st.session_state['rt_selected_stock'] not in watchlist else '000001.SZ'
         selected_stock = st.text_input("输入股票代码", value=default_code, placeholder="如: 000001.SZ, 600519.SH")
 
     if selected_stock != st.session_state['rt_selected_stock']:
@@ -184,6 +238,67 @@ with st.sidebar:
         st.session_state['rt_last_signal'] = None
         st.session_state['rt_signal_history'] = []
         st.rerun()
+
+    st.markdown("---")
+
+    # 自选股票管理
+    st.header("⭐ 自选股管理")
+
+    with st.expander("添加自选股", expanded=False):
+        col1, col2 = st.columns(2)
+        with col1:
+            new_stock_code = st.text_input("股票代码", placeholder="如: 000001.SZ, 600519.SH", key="add_stock_code")
+        with col2:
+            new_stock_name = st.text_input("股票名称（可选）", placeholder="如: 平安银行", key="add_stock_name")
+
+        if st.button("➕ 添加到自选", use_container_width=True):
+            if new_stock_code:
+                watchlist = st.session_state['rt_watchlist']
+                if new_stock_code in watchlist:
+                    st.warning("⚠️ 该股票已在自选中")
+                else:
+                    # 如果没有提供名称，尝试自动获取
+                    if not new_stock_name:
+                        try:
+                            temp_source = YFinanceDataSource()
+                            new_stock_name = get_stock_name(new_stock_code, temp_source)
+                        except Exception:
+                            new_stock_name = new_stock_code
+
+                    watchlist[new_stock_code] = new_stock_name
+                    if save_watchlist(watchlist):
+                        st.session_state['rt_watchlist'] = watchlist
+                        st.success(f"✅ 已添加: {new_stock_name} ({new_stock_code})")
+                        st.rerun()
+                    else:
+                        st.error("❌ 添加失败")
+            else:
+                st.warning("⚠️ 请输入股票代码")
+
+    with st.expander("删除自选股", expanded=False):
+        watchlist = st.session_state['rt_watchlist']
+        if watchlist:
+            stock_to_delete = st.selectbox(
+                "选择要删除的股票",
+                options=list(watchlist.keys()),
+                format_func=lambda x: f"{watchlist[x]} ({x})",
+                key="delete_stock_select"
+            )
+
+            if st.button("🗑️ 删除选中股票", use_container_width=True):
+                stock_name = watchlist[stock_to_delete]
+                del watchlist[stock_to_delete]
+                if save_watchlist(watchlist):
+                    st.session_state['rt_watchlist'] = watchlist
+                    # 如果删除的是当前选中的股票，切换到第一个
+                    if st.session_state['rt_selected_stock'] == stock_to_delete:
+                        st.session_state['rt_selected_stock'] = list(watchlist.keys())[0] if watchlist else '000001.SZ'
+                    st.success(f"✅ 已删除: {stock_name} ({stock_to_delete})")
+                    st.rerun()
+                else:
+                    st.error("❌ 删除失败")
+        else:
+            st.info("📋 自选股列表为空")
 
     st.markdown("---")
 
@@ -249,7 +364,10 @@ with st.sidebar:
 
 # 主内容区
 stock_code = st.session_state['rt_selected_stock']
-stock_name = POPULAR_STOCKS.get(stock_code, stock_code)
+
+# 优先从自选股列表获取名称，否则使用代码本身
+watchlist = st.session_state['rt_watchlist']
+stock_name = watchlist.get(stock_code, stock_code)
 
 # 显示当前选择的股票
 col1, col2, col3 = st.columns([2, 1, 1])
