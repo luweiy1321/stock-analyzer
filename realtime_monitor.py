@@ -495,6 +495,126 @@ try:
                 st.session_state['rt_show_alert'] = False
                 st.rerun()
 
+        # 先显示主要数据和分析建议（更重要）
+        st.markdown("---")
+
+        # 信号分析（最重要，放在前面）
+        st.subheader("🎯 交易建议")
+
+        # 信号评分展示
+        signal_col1, signal_col2 = st.columns(2)
+
+        with signal_col1:
+            # 买入评分
+            buy_progress = min(buy_score / buy_threshold * 100, 100) if buy_threshold > 0 else 0
+            buy_color = "#00c853" if buy_score >= buy_threshold else "#ffc107"
+
+            st.markdown(f"""
+            <div style="background: #f8f9fa; padding: 15px; border-radius: 8px; border: 1px solid #dee2e6;">
+                <div style="font-size: 14px; color: #6c757d; margin-bottom: 10px;">买入评分</div>
+                <div style="font-size: 32px; font-weight: bold; color: {buy_color};">{buy_score} / {buy_threshold}</div>
+                <div style="background: #e9ecef; height: 8px; border-radius: 4px; margin-top: 10px;">
+                    <div style="background: {buy_color}; height: 100%; border-radius: 4px; width: {buy_progress}%;"></div>
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
+
+        with signal_col2:
+            # 卖出评分
+            sell_progress = min(sell_score / sell_threshold * 100, 100) if sell_threshold > 0 else 0
+            sell_color = "#ff1744" if sell_score >= sell_threshold else "#ffc107"
+
+            st.markdown(f"""
+            <div style="background: #f8f9fa; padding: 15px; border-radius: 8px; border: 1px solid #dee2e6;">
+                <div style="font-size: 14px; color: #6c757d; margin-bottom: 10px;">卖出评分</div>
+                <div style="font-size: 32px; font-weight: bold; color: {sell_color};">{sell_score} / {sell_threshold}</div>
+                <div style="background: #e9ecef; height: 8px; border-radius: 4px; margin-top: 10px;">
+                    <div style="background: {sell_color}; height: 100%; border-radius: 4px; width: {sell_progress}%;"></div>
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
+
+        # 当前建议
+        if current_signal == 'BUY':
+            st.markdown("""
+            <div class="signal-buy" style="font-size: 18px; padding: 15px;">
+                🟢 建议买入
+            </div>
+            """, unsafe_allow_html=True)
+        elif current_signal == 'SELL':
+            st.markdown("""
+            <div class="signal-sell" style="font-size: 18px; padding: 15px;">
+                🔴 建议卖出
+            </div>
+            """, unsafe_allow_html=True)
+        else:
+            st.markdown("""
+            <div class="signal-hold" style="font-size: 18px; padding: 15px;">
+                🟡 观望
+            </div>
+            """, unsafe_allow_html=True)
+
+        st.markdown("---")
+
+        # 主要数据展示（6个指标卡片）
+        col1, col2, col3, col4, col5, col6 = st.columns(6)
+
+        price_change = latest['close'] - previous['close']
+        price_change_pct = (price_change / previous['close']) * 100 if previous['close'] > 0 else 0
+
+        price_color_class = "price-up" if price_change >= 0 else "price-down"
+        price_arrow = "↑" if price_change >= 0 else "↓"
+
+        with col1:
+            st.markdown(f"""
+            <div class="metric-card">
+                <div class="metric-value {price_color_class}">¥{latest['close']:.2f}</div>
+                <div class="metric-label">当前价</div>
+            </div>
+            """, unsafe_allow_html=True)
+
+        with col2:
+            st.markdown(f"""
+            <div class="metric-card">
+                <div class="metric-value {price_color_class}">{price_arrow} {abs(price_change):.2f}</div>
+                <div class="metric-label">涨跌额</div>
+            </div>
+            """, unsafe_allow_html=True)
+
+        with col3:
+            st.markdown(f"""
+            <div class="metric-card">
+                <div class="metric-value {price_color_class}">{price_arrow} {abs(price_change_pct):.2f}%</div>
+                <div class="metric-label">涨跌幅</div>
+            </div>
+            """, unsafe_allow_html=True)
+
+        with col4:
+            st.markdown(f"""
+            <div class="metric-card">
+                <div class="metric-value">¥{latest['high']:.2f}</div>
+                <div class="metric-label">最高价</div>
+            </div>
+            """, unsafe_allow_html=True)
+
+        with col5:
+            st.markdown(f"""
+            <div class="metric-card">
+                <div class="metric-value">¥{latest['low']:.2f}</div>
+                <div class="metric-label">最低价</div>
+            </div>
+            """, unsafe_allow_html=True)
+
+        with col6:
+            st.markdown(f"""
+            <div class="metric-card">
+                <div class="metric-value">{latest['volume']:,.0f}</div>
+                <div class="metric-label">成交量</div>
+            </div>
+            """, unsafe_allow_html=True)
+
+        st.markdown("---")
+
         # 实时行情信息 - 总是显示
         st.markdown("---")
 
@@ -585,65 +705,6 @@ try:
 
             st.markdown("---")
 
-        # 主要数据展示
-        col1, col2, col3, col4, col5, col6 = st.columns(6)
-
-        price_change = latest['close'] - previous['close']
-        price_change_pct = (price_change / previous['close']) * 100 if previous['close'] > 0 else 0
-
-        price_color_class = "price-up" if price_change >= 0 else "price-down"
-        price_arrow = "↑" if price_change >= 0 else "↓"
-
-        with col1:
-            st.markdown(f"""
-            <div class="metric-card">
-                <div class="metric-value {price_color_class}">¥{latest['close']:.2f}</div>
-                <div class="metric-label">当前价</div>
-            </div>
-            """, unsafe_allow_html=True)
-
-        with col2:
-            st.markdown(f"""
-            <div class="metric-card">
-                <div class="metric-value {price_color_class}">{price_arrow} {abs(price_change):.2f}</div>
-                <div class="metric-label">涨跌额</div>
-            </div>
-            """, unsafe_allow_html=True)
-
-        with col3:
-            st.markdown(f"""
-            <div class="metric-card">
-                <div class="metric-value {price_color_class}">{price_arrow} {abs(price_change_pct):.2f}%</div>
-                <div class="metric-label">涨跌幅</div>
-            </div>
-            """, unsafe_allow_html=True)
-
-        with col4:
-            st.markdown(f"""
-            <div class="metric-card">
-                <div class="metric-value">¥{latest['high']:.2f}</div>
-                <div class="metric-label">最高价</div>
-            </div>
-            """, unsafe_allow_html=True)
-
-        with col5:
-            st.markdown(f"""
-            <div class="metric-card">
-                <div class="metric-value">¥{latest['low']:.2f}</div>
-                <div class="metric-label">最低价</div>
-            </div>
-            """, unsafe_allow_html=True)
-
-        with col6:
-            st.markdown(f"""
-            <div class="metric-card">
-                <div class="metric-value">{latest['volume']:,.0f}</div>
-                <div class="metric-label">成交量</div>
-            </div>
-            """, unsafe_allow_html=True)
-
-        st.markdown("---")
-
         # 技术指标展示
         col1, col2 = st.columns(2)
 
@@ -682,62 +743,6 @@ try:
                 ]
             })
             st.dataframe(indicator_df, hide_index=True, use_container_width=True)
-
-        with col2:
-            st.subheader("🎯 信号分析")
-
-            # 信号评分展示
-            signal_col1, signal_col2 = st.columns(2)
-
-            with signal_col1:
-                # 买入评分
-                buy_progress = min(buy_score / buy_threshold * 100, 100) if buy_threshold > 0 else 0
-                buy_color = "#00c853" if buy_score >= buy_threshold else "#ffc107"
-
-                st.markdown(f"""
-                <div style="background: #f8f9fa; padding: 15px; border-radius: 8px; border: 1px solid #dee2e6;">
-                    <div style="font-size: 14px; color: #6c757d; margin-bottom: 10px;">买入评分</div>
-                    <div style="font-size: 32px; font-weight: bold; color: {buy_color};">{buy_score} / {buy_threshold}</div>
-                    <div style="background: #e9ecef; height: 8px; border-radius: 4px; margin-top: 10px;">
-                        <div style="background: {buy_color}; height: 100%; border-radius: 4px; width: {buy_progress}%;"></div>
-                    </div>
-                </div>
-                """, unsafe_allow_html=True)
-
-            with signal_col2:
-                # 卖出评分
-                sell_progress = min(sell_score / sell_threshold * 100, 100) if sell_threshold > 0 else 0
-                sell_color = "#ff1744" if sell_score >= sell_threshold else "#ffc107"
-
-                st.markdown(f"""
-                <div style="background: #f8f9fa; padding: 15px; border-radius: 8px; border: 1px solid #dee2e6;">
-                    <div style="font-size: 14px; color: #6c757d; margin-bottom: 10px;">卖出评分</div>
-                    <div style="font-size: 32px; font-weight: bold; color: {sell_color};">{sell_score} / {sell_threshold}</div>
-                    <div style="background: #e9ecef; height: 8px; border-radius: 4px; margin-top: 10px;">
-                        <div style="background: {sell_color}; height: 100%; border-radius: 4px; width: {sell_progress}%;"></div>
-                    </div>
-                </div>
-                """, unsafe_allow_html=True)
-
-            # 当前建议
-            if current_signal == 'BUY':
-                st.markdown("""
-                <div class="signal-buy" style="font-size: 18px; padding: 15px;">
-                    🟢 建议买入
-                </div>
-                """, unsafe_allow_html=True)
-            elif current_signal == 'SELL':
-                st.markdown("""
-                <div class="signal-sell" style="font-size: 18px; padding: 15px;">
-                    🔴 建议卖出
-                </div>
-                """, unsafe_allow_html=True)
-            else:
-                st.markdown("""
-                <div class="signal-hold" style="font-size: 18px; padding: 15px;">
-                    🟡 观望
-                </div>
-                """, unsafe_allow_html=True)
 
         st.markdown("---")
 
