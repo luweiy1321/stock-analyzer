@@ -403,11 +403,28 @@ try:
     start_date = (datetime.now() - timedelta(days=data_days)).strftime('%Y-%m-%d')
 
     with st.spinner("正在获取数据..."):
+        # 获取历史日线数据
         df = data_source.get_daily_data(stock_code, start_date, end_date)
+
+        # 获取实时行情数据
+        realtime_df = data_source.get_realtime_data(stock_code)
 
     if df.empty:
         st.error(f"❌ 无法获取股票 {stock_code} 的数据，请检查股票代码是否正确")
     else:
+        # 如果有实时数据，更新今天的最新价格
+        if not realtime_df.empty:
+            realtime_row = realtime_df.iloc[0]
+            # 更新最后一行数据为实时数据
+            df.loc[df.index[-1], 'close'] = realtime_row.get('price', df.loc[df.index[-1], 'close'])
+            df.loc[df.index[-1], 'high'] = max(df.loc[df.index[-1], 'high'], realtime_row.get('high', df.loc[df.index[-1], 'high']))
+            df.loc[df.index[-1], 'low'] = min(df.loc[df.index[-1], 'low'], realtime_row.get('low', df.loc[df.index[-1], 'low']))
+            df.loc[df.index[-1], 'volume'] = realtime_row.get('volume', df.loc[df.index[-1], 'volume'])
+
+            # 如果有今开价格，也更新
+            if 'open' in realtime_row and pd.notna(realtime_row['open']):
+                df.loc[df.index[-1], 'open'] = realtime_row['open']
+
         # 技术分析
         df = analyzer.analyze(df)
 
@@ -471,6 +488,74 @@ try:
             if st.button("关闭提醒"):
                 st.session_state['rt_show_alert'] = False
                 st.rerun()
+
+        # 实时行情信息
+        if not realtime_df.empty:
+            st.markdown("---")
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                st.markdown("### 📡 实时行情")
+            with col2:
+                # 获取实时数据时间
+                update_time = datetime.now().strftime('%H:%M:%S')
+                st.caption(f"最后更新: {update_time}")
+            with col3:
+                st.caption("数据来源: 东方财富")
+
+            # 实时数据详情
+            realtime_info = realtime_df.iloc[0]
+            realtime_col1, realtime_col2, realtime_col3, realtime_col4 = st.columns(4)
+
+            with realtime_col1:
+                rt_price = realtime_info.get('price', latest['close'])
+                rt_change = realtime_info.get('change_amount', 0)
+                rt_change_pct = realtime_info.get('change_pct', 0)
+                rt_color = "price-up" if float(rt_change) >= 0 else "price-down"
+                rt_arrow = "↑" if float(rt_change) >= 0 else "↓"
+                st.markdown(f"""
+                <div style="background: #f0f8ff; padding: 12px; border-radius: 8px; border: 1px solid #4a90e2; text-align: center;">
+                    <div style="font-size: 12px; color: #666;">实时价格</div>
+                    <div style="font-size: 28px; font-weight: bold; {rt_color};">¥{float(rt_price):.2f}</div>
+                    <div style="font-size: 14px; {rt_color};">{rt_arrow} {abs(float(rt_change)):.2f} ({abs(float(rt_change_pct)):.2f}%)</div>
+                </div>
+                """, unsafe_allow_html=True)
+
+            with realtime_col2:
+                rt_open = realtime_info.get('open', latest['open'])
+                rt_high = realtime_info.get('high', latest['high'])
+                rt_low = realtime_info.get('low', latest['low'])
+                st.markdown(f"""
+                <div style="background: #f8f9fa; padding: 12px; border-radius: 8px; border: 1px solid #dee2e6;">
+                    <div style="font-size: 12px; color: #666; margin-bottom: 8px;">今开/今高/今低</div>
+                    <div style="font-size: 14px;">今开: <b>¥{float(rt_open):.2f}</b></div>
+                    <div style="font-size: 14px;">今高: <b style="color: #00c853;">¥{float(rt_high):.2f}</b></div>
+                    <div style="font-size: 14px;">今低: <b style="color: #ff1744;">¥{float(rt_low):.2f}</b></div>
+                </div>
+                """, unsafe_allow_html=True)
+
+            with realtime_col3:
+                rt_volume = realtime_info.get('volume', latest['volume'])
+                rt_amount = realtime_info.get('amount', 0)
+                rt_turnover = realtime_info.get('turnover', 0)
+                st.markdown(f"""
+                <div style="background: #f8f9fa; padding: 12px; border-radius: 8px; border: 1px solid #dee2e6;">
+                    <div style="font-size: 12px; color: #666; margin-bottom: 8px;">成交量/额</div>
+                    <div style="font-size: 14px;">成交量: <b>{float(rt_volume)/10000:.2f}万手</b></div>
+                    <div style="font-size: 14px;">成交额: <b>{float(rt_amount)/100000000:.2f}亿</b></div>
+                    <div style="font-size: 14px;">换手率: <b>{float(rt_turnover):.2f}%</b></div>
+                </div>
+                """, unsafe_allow_html=True)
+
+            with realtime_col4:
+                rt_pe = realtime_info.get('pe_ttm', 0)
+                st.markdown(f"""
+                <div style="background: #f8f9fa; padding: 12px; border-radius: 8px; border: 1px solid #dee2e6;">
+                    <div style="font-size: 12px; color: #666; margin-bottom: 8px;">估值指标</div>
+                    <div style="font-size: 14px;">市盈率(TTM): <b>{float(rt_pe):.2f}</b></div>
+                </div>
+                """, unsafe_allow_html=True)
+
+            st.markdown("---")
 
         # 主要数据展示
         col1, col2, col3, col4, col5, col6 = st.columns(6)

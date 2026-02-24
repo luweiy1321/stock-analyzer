@@ -172,6 +172,69 @@ class AKShareDataSource:
             logger.error(f"获取 {symbol} 日线数据失败: {e}")
             raise
 
+    def get_intraday_data(self, symbol: str) -> pd.DataFrame:
+        """
+        获取分时数据（当天实时）
+
+        Args:
+            symbol: 股票代码，如 '000001.SZ'
+
+        Returns:
+            分时数据 DataFrame
+        """
+        try:
+            ak_symbol = self._convert_symbol(symbol)
+            code = ak_symbol[2:]  # 去掉 sh/sz 前缀
+            logger.info(f"正在获取 {symbol} 的分时数据...")
+
+            # 获取分时数据
+            df = ak.stock_zh_a_hist_min_em(symbol=code, period='1', adjust='')
+
+            if df.empty:
+                logger.warning(f"未获取到股票 {symbol} 的分时数据")
+                return df
+
+            # 转换列名
+            column_map = {
+                '时间': 'date',
+                '开盘': 'open',
+                '收盘': 'close',
+                '最高': 'high',
+                '最低': 'low',
+                '成交量': 'volume',
+                '时间': 'datetime',
+            }
+
+            # 检查是否有英文列名（新版接口）
+            if 'datetime' in df.columns or 'DateTime' in df.columns:
+                df.columns = df.columns.str.lower()
+
+            df = df.rename(columns=column_map)
+
+            # 确保日期是 datetime 格式
+            if 'date' in df.columns:
+                df['date'] = pd.to_datetime(df['date'])
+            elif 'datetime' in df.columns:
+                df['date'] = pd.to_datetime(df['datetime'])
+
+            # 保留必要的列
+            required_cols = ['date', 'open', 'high', 'low', 'close', 'volume']
+            existing_cols = [col for col in required_cols if col in df.columns]
+            df = df[existing_cols]
+
+            # 转换日期格式
+            df['trade_date'] = df['date'].dt.strftime('%Y%m%d')
+
+            # 按时间排序
+            df = df.sort_values('date').reset_index(drop=True)
+
+            logger.info(f"获取 {symbol} 分时数据成功，共 {len(df)} 条记录")
+            return df
+
+        except Exception as e:
+            logger.error(f"获取 {symbol} 分时数据失败: {e}")
+            return pd.DataFrame()
+
     def get_realtime_data(self, symbol: str) -> pd.DataFrame:
         """
         获取实时行情数据
