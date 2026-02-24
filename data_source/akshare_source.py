@@ -247,17 +247,40 @@ class AKShareDataSource:
         """
         try:
             ak_symbol = self._convert_symbol(symbol)
+            code = ak_symbol[2:]  # 去掉 sh/sz 前缀
             logger.info(f"正在获取 {symbol} 的实时数据...")
 
             # 获取实时行情
             df = ak.stock_zh_a_spot_em()
 
-            # 筛选目标股票
-            stock_df = df[df['代码'] == ak_symbol[2:]]  # 去掉 sh/sz 前缀
+            if df.empty:
+                logger.warning(f"实时行情数据为空")
+                return pd.DataFrame()
+
+            # 打印前几行的列名用于调试
+            logger.debug(f"实时数据列名: {df.columns.tolist()[:5]}")
+
+            # 尝试多种方式筛选股票
+            stock_df = pd.DataFrame()
+
+            # 方式1: 通过代码列筛选
+            if '代码' in df.columns:
+                stock_df = df[df['代码'] == code]
+            # 方式2: 通过英文列名筛选
+            elif 'code' in df.columns:
+                stock_df = df[df['code'] == code]
+
+            # 如果还是空，尝试带市场前缀
+            if stock_df.empty:
+                if '代码' in df.columns:
+                    stock_df = df[df['代码'] == ak_symbol]
+                elif 'code' in df.columns:
+                    stock_df = df[df['code'] == ak_symbol]
 
             if stock_df.empty:
-                logger.warning(f"未获取到股票 {symbol} 的实时数据")
-                return stock_df
+                logger.warning(f"未找到股票 {symbol} ({code}) 的实时数据")
+                logger.debug(f"可用的股票代码示例: {df['代码'].head(3).tolist() if '代码' in df.columns else 'N/A'}")
+                return pd.DataFrame()
 
             # 转换列名
             column_map = {
@@ -275,11 +298,12 @@ class AKShareDataSource:
                 '昨收': 'prev_close',
                 '换手率': 'turnover',
                 '市盈率-动态': 'pe_ttm',
+                '市盈率': 'pe_ttm',
             }
 
             stock_df = stock_df.rename(columns=column_map)
 
-            logger.info(f"获取 {symbol} 实时数据成功")
+            logger.info(f"获取 {symbol} 实时数据成功: {stock_df.iloc[0].get('price', 'N/A')}")
             return stock_df
 
         except Exception as e:
