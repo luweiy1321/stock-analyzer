@@ -10,43 +10,25 @@ sys.path.insert(0, str(Path(__file__).parent))
 import streamlit as st
 import pandas as pd
 from datetime import datetime, timedelta
-from data_source import YFinanceDataSource, AKShareDataSource
-from analysis import SignalAnalyzer
-from chart import plot_stock_analysis, plot_signal_summary
-from config import INDICATORS, SIGNAL_CONFIG, WATCHLIST, DEFAULT_STOCK_CODE
+from data_source import AKShareDataSource
+from config import WATCHLIST, DEFAULT_STOCK_CODE, INDICATORS
 
 # 页面配置
 st.set_page_config(
     page_title="股票技术分析系统",
     page_icon="📈",
-    layout="wide",
-    initial_sidebar_state="expanded"
+    layout="wide"
 )
 
-# 自定义CSS - 夜间模式优化
-st.markdown("""
-<style>
-    .stApp { background-color: #0e1117; }
-    .main-title { font-size: 2rem; font-weight: bold; color: #ff4b4b; text-align: center; padding: 1rem; }
-    .signal-buy { background-color: #28a745; color: white; padding: 0.5rem 1rem; border-radius: 0.5rem; font-weight: bold; }
-    .signal-sell { background-color: #dc3545; color: white; padding: 0.5rem 1rem; border-radius: 0.5rem; font-weight: bold; }
-    .signal-hold { background-color: #ffc107; color: black; padding: 0.5rem 1rem; border-radius: 0.5rem; font-weight: bold; }
-</style>
-""", unsafe_allow_html=True)
-
-st.markdown('<p class="main-title">📈 股票技术分析与买卖指导系统</p>', unsafe_allow_html=True)
+st.markdown('<p style="font-size:24px;font-weight:bold;color:#ff4b4b;text-align:center;">📈 股票技术分析与买卖指导系统</p>', unsafe_allow_html=True)
 st.markdown("---")
 
 # 侧边栏
 with st.sidebar:
     st.header("⚙️ 设置")
     
-    # 数据源选择
-    data_source = st.radio("数据源", ["AKShare (A股)", "YFinance (美股)"], horizontal=True)
-    
     # 股票代码输入
-    stock_code = st.text_input("股票代码", value=DEFAULT_STOCK_CODE, 
-                                help="A股：000001.SZ, 600519.SH\n美股：AAPL, TSLA, NVDA")
+    stock_code = st.text_input("股票代码", value="600519.SH")
     
     # 快速选择自选股
     st.subheader("⭐ 自选股")
@@ -54,75 +36,54 @@ with st.sidebar:
     if selected_watchlist:
         stock_code = selected_watchlist
     
-    # 日期范围
-    st.subheader("📅 日期范围")
-    end_date = st.date_input("结束日期", value=datetime.now())
-    start_date = st.date_input("开始日期", value=end_date - timedelta(days=365))
-    
-    # 指标参数
-    st.subheader("📊 指标参数")
-    col1, col2 = st.columns(2)
-    with col1:
-        ma_short = st.number_input("MA短期", value=5, min_value=1, max_value=200)
-        rsi_period = st.number_input("RSI周期", value=14, min_value=1, max_value=100)
-    with col2:
-        ma_medium = st.number_input("MA中期", value=20, min_value=1, max_value=200)
-        macd_fast = st.number_input("MACD快线", value=12, min_value=1, max_value=200)
-    
-    # 信号阈值
-    st.subheader("🎯 信号阈值")
-    buy_threshold = st.slider("买入阈值", 0, 10, 3)
-    sell_threshold = st.slider("卖出阈值", 0, 10, 3)
-    
-    # 自动刷新
-    st.subheader("🔄 自动刷新")
-    auto_refresh = st.checkbox("开启自动刷新", value=False)
-    if auto_refresh:
-        refresh_interval = st.slider("刷新间隔(秒)", 30, 300, 60)
-    
     analyze_button = st.button("🚀 开始分析", type="primary", use_container_width=True)
 
 # 主内容区
 if analyze_button or 'df' not in st.session_state:
     with st.spinner("正在获取数据并分析..."):
         try:
-            if "A股" in data_source:
-                data_source_obj = AKShareDataSource()
-            else:
-                data_source_obj = YFinanceDataSource()
-            
-            df = data_source_obj.get_daily_data(stock_code, start_date.strftime("%Y-%m-%d"), end_date.strftime("%Y-%m-%d"))
+            ds = AKShareDataSource()
+            df = ds.get_daily_data(stock_code, "2025-01-01", datetime.now().strftime("%Y-%m-%d"))
             
             if df is None or df.empty:
-                st.error(f"❌ 无法获取 {stock_code} 的数据，请检查股票代码是否正确")
+                st.error(f"❌ 无法获取 {stock_code} 的数据")
                 st.stop()
             
             st.session_state.df = df
             st.session_state.stock_code = stock_code
             
-            from indicators import MovingAverage, RelativeStrengthIndex, MACD, KDJ
-            from indicators.boll import BOLLIndicator
+            # 计算MA
+            df['ma5'] = df['close'].rolling(window=5).mean()
+            df['ma20'] = df['close'].rolling(window=20).mean()
+            df['ma60'] = df['close'].rolling(window=60).mean()
             
-            ma_indicator = MovingAverage(short_period=ma_short, medium_period=ma_medium)
-            df = ma_indicator.calculate(df)
+            # 计算RSI
+            delta = df['close'].diff()
+            gain = (delta.where(delta > 0, 0)).rolling(window=14).mean()
+            loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
+            rs = gain / loss
+            df['rsi'] = 100 - (100 / (1 + rs))
             
-            rsi_indicator = RelativeStrengthIndex(period=rsi_period)
-            df = rsi_indicator.calculate(df)
+            # 计算MACD
+            exp1 = df['close'].ewm(span=12, adjust=False).mean()
+            exp2 = df['close'].ewm(span=26, adjust=False).mean()
+            df['macd'] = exp1 - exp2
+            df['signal'] = df['macd'].ewm(span=9, adjust=False).mean()
             
-            macd_indicator = MACD(fast_period=macd_fast)
-            df = macd_indicator.calculate(df)
+            # 计算KDJ
+            low14 = df['low'].rolling(window=14).min()
+            high14 = df['high'].rolling(window=14).max()
+            df['k'] = 100 * (df['close'] - low14) / (high14 - low14)
+            df['d'] = df['k'].rolling(window=3).mean()
+            df['j'] = 3 * df['k'] - 2 * df['d']
             
-            kdj_indicator = KDJ()
-            df = kdj_indicator.calculate(df)
+            # 计算BOLL
+            df['boll_mid'] = df['close'].rolling(window=20).mean()
+            std = df['close'].rolling(window=20).std()
+            df['boll_upper'] = df['boll_mid'] + 2 * std
+            df['boll_lower'] = df['boll_mid'] - 2 * std
             
-            boll_indicator = BOLLIndicator()
-            df = boll_indicator.calculate(df)
-            
-            analyzer = SignalAnalyzer(buy_threshold=buy_threshold, sell_threshold=sell_threshold)
-            signals = analyzer.analyze(df)
-            
-            st.session_state.signals = signals
-            st.session_state.boll_signals = boll_indicator.get_signals(df)
+            st.session_state.df = df
             
         except Exception as e:
             st.error(f"❌ 分析失败: {str(e)}")
@@ -131,85 +92,120 @@ if analyze_button or 'df' not in st.session_state:
 if 'df' in st.session_state:
     df = st.session_state.df
     stock_code = st.session_state.stock_code
-    signals = st.session_state.get('signals', {})
-    boll_signals = st.session_state.get('boll_signals', {})
+    
+    latest = df.iloc[-1]
+    prev = df.iloc[-2] if len(df) > 1 else latest
+    
+    # 交易信号判断
+    buy_score = 0
+    sell_score = 0
+    
+    # MA信号
+    ma_signal = "震荡"
+    if latest['ma5'] > latest['ma20'] > latest['ma60']:
+        ma_signal = "多头"
+        buy_score += 2
+    elif latest['ma5'] < latest['ma20'] < latest['ma60']:
+        ma_signal = "空头"
+        sell_score += 2
+    
+    # RSI信号
+    rsi = latest.get('rsi', 50)
+    rsi_signal = "正常"
+    if rsi > 70:
+        rsi_signal = "超买"
+        sell_score += 3
+    elif rsi < 30:
+        rsi_signal = "超卖"
+        buy_score += 3
+    
+    # MACD信号
+    macd_signal = "震荡"
+    if latest.get('macd', 0) > latest.get('signal', 0) and prev.get('macd', 0) <= prev.get('signal', 0):
+        macd_signal = "金叉"
+        buy_score += 3
+    elif latest.get('macd', 0) < latest.get('signal', 0) and prev.get('macd', 0) >= prev.get('signal', 0):
+        macd_signal = "死叉"
+        sell_score += 3
+    
+    # KDJ信号
+    k = latest.get('k', 50)
+    kdj_signal = "正常"
+    if k > 80:
+        kdj_signal = "超买"
+        sell_score += 2
+    elif k < 20:
+        kdj_signal = "超卖"
+        buy_score += 2
+    
+    # 综合建议
+    if buy_score > sell_score + 2:
+        overall = "🟢 买入"
+    elif sell_score > buy_score + 2:
+        overall = "🔴 卖出"
+    else:
+        overall = "🟡 持有"
     
     st.subheader("🎯 交易建议")
-    
-    signal_color = "green" if signals.get("overall_signal") == "BUY" else "red" if signals.get("overall_signal") == "SELL" else "yellow"
-    signal_text = "买入" if signals.get("overall_signal") == "BUY" else "卖出" if signals.get("overall_signal") == "SELL" else "持有"
-    
     col1, col2, col3, col4 = st.columns(4)
     with col1:
-        latest = df.iloc[-1]
-        st.metric("当前价格", f"{latest.get('close', 0):.2f}", 
-                  f"{latest.get('pct_change', 0):.2f}%")
+        st.metric("当前价", f"{latest.get('close', 0):.2f}")
     with col2:
-        buy_score = signals.get("buy_score", 0)
-        st.metric("买入评分", f"{buy_score}/10", 
-                  delta="🟢 买入" if buy_score >= 3 else None)
+        st.metric("买入评分", f"{buy_score}/10", delta="🟢 买入" if buy_score > 3 else None)
     with col3:
-        sell_score = signals.get("sell_score", 0)
-        st.metric("卖出评分", f"{sell_score}/10",
-                  delta="🔴 卖出" if sell_score >= 3 else None)
+        st.metric("卖出评分", f"{sell_score}/10", delta="🔴 卖出" if sell_score > 3 else None)
     with col4:
-        trend = signals.get("trend", "未知")
-        st.metric("趋势判断", trend)
-    
-    st.markdown(f"""
-    <div style="text-align: center; padding: 1rem; background-color: #{signal_color}; 
-                border-radius: 0.5rem; margin: 1rem 0;">
-        <h2>📊 综合建议: {signal_text}</h2>
-        <p>{signals.get("summary", "暂无建议")}</p>
-    </div>
-    """, unsafe_allow_html=True)
+        st.metric("综合建议", overall)
     
     st.subheader("📊 技术指标")
     col1, col2, col3, col4 = st.columns(4)
     with col1:
-        ma_info = signals.get("ma_signal", {})
-        st.info(f"MA信号: {ma_info.get('signal', 'N/A')}")
+        st.info(f"MA: {ma_signal}")
     with col2:
-        rsi_info = signals.get("rsi_signal", {})
-        st.info(f"RSI: {rsi_info.get('rsi', 0):.1f}")
+        st.info(f"RSI: {rsi:.1f} ({rsi_signal})")
     with col3:
-        macd_info = signals.get("macd_signal", {})
-        st.info(f"MACD: {macd_info.get('signal', 'N/A')}")
+        st.info(f"MACD: {macd_signal}")
     with col4:
-        kdj_info = signals.get("kdj_signal", {})
-        st.info(f"KDJ: {kdj_info.get('signal', 'N/A')}")
+        st.info(f"KDJ: {k:.1f} ({kdj_signal})")
     
-    if boll_signals:
-        st.subheader("📈 布林带")
-        col1, col2, col3 = st.columns(3)
-        with col1:
-            st.metric("上轨", f"{boll_signals.get('upper', 0):.2f}")
-        with col2:
-            st.metric("中轨", f"{boll_signals.get('mid', 0):.2f}")
-        with col3:
-            st.metric("下轨", f"{boll_signals.get('lower', 0):.2f}")
-        
-        if boll_signals.get('signals'):
-            for s in boll_signals['signals']:
-                if s['severity'] == 'BUY':
-                    st.success(f"🟢 {s['message']}")
-                elif s['severity'] == 'SELL':
-                    st.warning(f"🔴 {s['message']}")
+    st.subheader("📈 布林带")
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        st.metric("上轨", f"{latest.get('boll_upper', 0):.2f}")
+    with col2:
+        st.metric("中轨", f"{latest.get('boll_mid', 0):.2f}")
+    with col3:
+        st.metric("下轨", f"{latest.get('boll_lower', 0):.2f}")
     
-    st.subheader("📉 技术分析图表")
+    # 图表
+    st.subheader("📉 K线图")
     try:
-        chart_fig = plot_stock_analysis(df, stock_code)
-        st.plotly_chart(chart_fig, use_container_width=True)
+        import plotly.graph_objects as go
+        from plotly.subplots import make_subplots
+        
+        df_show = df.tail(60)
+        
+        fig = make_subplots(rows=2, cols=1, shared_xaxes=True, vertical_spacing=0.1, subplot_titles=('K线', '成交量'))
+        
+        fig.add_trace(go.Candlestick(
+            x=df_show.index,
+            open=df_show['open'],
+            high=df_show['high'],
+            low=df_show['low'],
+            close=df_show['close'],
+            name='K线'
+        ), row=1, col=1)
+        
+        colors = ['green' if df_show['close'].iloc[i] >= df_show['open'].iloc[i] else 'red' for i in range(len(df_show))]
+        fig.add_trace(go.Bar(x=df_show.index, y=df_show['volume'], marker_color=colors, name='成交量'), row=2, col=1)
+        
+        fig.update_layout(xaxis_rangeslider_visible=False, height=500, template='plotly_dark')
+        st.plotly_chart(fig, use_container_width=True)
     except Exception as e:
-        st.error(f"图表生成失败: {str(e)}")
+        st.warning(f"图表生成失败: {str(e)}")
     
     with st.expander("📋 详细数据"):
-        st.dataframe(df.tail(30), use_container_width=True)
-    
-    if auto_refresh:
-        import time
-        time.sleep(refresh_interval)
-        st.rerun()
+        st.dataframe(df.tail(30))
 
 st.markdown("---")
-st.caption("⚠️ 风险提示：本系统仅供学习交流，不构成投资建议，投资有风险，入市需谨慎")
+st.caption("⚠️ 风险提示：本系统仅供学习交流，不构成投资建议")
