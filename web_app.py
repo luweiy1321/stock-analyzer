@@ -100,19 +100,19 @@ if analyze_button or 'df' not in st.session_state:
             st.session_state.df = df
             st.session_state.stock_code = stock_code
             
-            from indicators import MAIndicator, RSIIndicator, MACDIndicator, KDJIndicator
+            from indicators import MovingAverage, RelativeStrengthIndex, MACD, KDJ
             from indicators.boll import BOLLIndicator
             
-            ma_indicator = MAIndicator(short_period=ma_short, medium_period=ma_medium)
+            ma_indicator = MovingAverage(short_period=ma_short, medium_period=ma_medium)
             df = ma_indicator.calculate(df)
             
-            rsi_indicator = RSIIndicator(period=rsi_period)
+            rsi_indicator = RelativeStrengthIndex(period=rsi_period)
             df = rsi_indicator.calculate(df)
             
-            macd_indicator = MACDIndicator(fast_period=macd_fast)
+            macd_indicator = MACD(fast_period=macd_fast)
             df = macd_indicator.calculate(df)
             
-            kdj_indicator = KDJIndicator()
+            kdj_indicator = KDJ()
             df = kdj_indicator.calculate(df)
             
             boll_indicator = BOLLIndicator()
