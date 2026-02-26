@@ -16,7 +16,6 @@ from data_source import AKShareDataSource, YFinanceDataSource
 
 # 自选股文件路径
 WATCHLIST_FILE = Path(__file__).parent / "data" / "watchlist.json"
-WATCHLIST_FILE.mkdir(parents=True, exist_ok=True)
 
 # 默认自选股
 DEFAULT_WATCHLIST = {
