@@ -12,17 +12,17 @@ import pandas as pd
 from datetime import datetime
 import json
 
-from data_source import AKShareDataSource
+from data_source import AKShareDataSource, YFinanceDataSource
 
 # 自选股文件路径
 WATCHLIST_FILE = Path(__file__).parent / "data" / "watchlist.json"
+WATCHLIST_FILE.mkdir(parents=True, exist_ok=True)
 
 # 默认自选股
-DEFAULT_WATCHLIST = [
-    "000001.SZ", "600519.SH", "600036.SH", "600900.SH",
-    "601318.SH", "300750.SZ", "300059.SZ", "002594.SZ",
-    "600410.SH", "002185.SZ", "002009.SZ"
-]
+DEFAULT_WATCHLIST = {
+    "A股": ["000001.SZ", "600519.SH", "600036.SH", "600900.SH", "601318.SH", "300750.SZ", "300059.SZ", "600410.SH"],
+    "美股": ["AAPL", "TSLA", "NVDA", "MSFT", "GOOGL", "AMZN"]
+}
 
 # 页面配置
 st.set_page_config(
@@ -35,32 +35,35 @@ st.markdown('<p style="font-size:24px;font-weight:bold;color:#ff4b4b;text-align:
 st.markdown("---")
 
 # 加载自选股
-def load_watchlist():
-    if WATCHLIST_FILE.exists():
+def load_watchlist(market):
+    f = WATCHLIST_FILE.parent / f"watchlist_{market}.json"
+    if f.exists():
         try:
-            return json.loads(WATCHLIST_FILE.read_text())
+            return json.loads(f.read_text())
         except:
             pass
-    return DEFAULT_WATCHLIST.copy()
+    return DEFAULT_WATCHLIST.get(market, []).copy()
 
-def save_watchlist(watchlist):
-    WATCHLIST_FILE.parent.mkdir(parents=True, exist_ok=True)
-    WATCHLIST_FILE.write_text(json.dumps(watchlist, ensure_ascii=False, indent=2))
+def save_watchlist(market, watchlist):
+    f = WATCHLIST_FILE.parent / f"watchlist_{market}.json"
+    f.write_text(json.dumps(watchlist, ensure_ascii=False, indent=2))
 
 # 侧边栏
 with st.sidebar:
     st.header("⚙️ 设置")
     
-    # 加载自选股
-    watchlist = load_watchlist()
+    # 选择市场
+    market = st.radio("📡 市场", ["A股", "美股"], horizontal=True)
+    
+    watchlist = load_watchlist(market)
     
     # 添加自选股
     st.subheader("➕ 添加股票")
-    new_stock = st.text_input("输入股票代码", placeholder="如: 600519.SH")
+    new_stock = st.text_input("输入股票代码", placeholder="如: 600519.SH" if market == "A股" else "如: AAPL")
     if st.button("添加"):
         if new_stock and new_stock not in watchlist:
             watchlist.append(new_stock)
-            save_watchlist(watchlist)
+            save_watchlist(market, watchlist)
             st.success(f"已添加 {new_stock}")
             st.rerun()
     
@@ -70,16 +73,16 @@ with st.sidebar:
     if st.button("删除"):
         if stock_to_delete and stock_to_delete in watchlist:
             watchlist.remove(stock_to_delete)
-            save_watchlist(watchlist)
+            save_watchlist(market, watchlist)
             st.success(f"已删除 {stock_to_delete}")
             st.rerun()
     
     # 选择股票分析
     st.subheader("📊 选择股票")
-    stock_code = st.selectbox("自选股", watchlist)
+    stock_code = st.selectbox(f"{market}自选股", watchlist)
     
     # 也支持手动输入
-    manual_input = st.text_input("或手动输入代码", placeholder="如: 600519.SH")
+    manual_input = st.text_input("或手动输入代码", placeholder="如: 600519.SH" if market == "A股" else "如: AAPL")
     if manual_input:
         stock_code = manual_input
     
@@ -88,12 +91,16 @@ with st.sidebar:
 # 主内容区
 if analyze_button or ('df' not in st.session_state and 'stock_code' in locals()):
     if 'stock_code' not in locals() or not stock_code:
-        stock_code = "600519.SH"
+        stock_code = "600519.SH" if market == "A股" else "AAPL"
     
     with st.spinner("正在获取数据并分析..."):
         try:
-            ds = AKShareDataSource()
-            df = ds.get_daily_data(stock_code, "2025-01-01", datetime.now().strftime("%Y-%m-%d"))
+            if market == "A股":
+                ds = AKShareDataSource()
+                df = ds.get_daily_data(stock_code, "2025-01-01", datetime.now().strftime("%Y-%m-%d"))
+            else:
+                ds = YFinanceDataSource()
+                df = ds.get_stock_data(stock_code, "2025-01-01", datetime.now().strftime("%Y-%m-%d"))
             
             if df is None or df.empty:
                 st.error(f"❌ 无法获取 {stock_code} 的数据")
@@ -101,6 +108,7 @@ if analyze_button or ('df' not in st.session_state and 'stock_code' in locals())
             
             st.session_state.df = df
             st.session_state.stock_code = stock_code
+            st.session_state.market = market
             
             # 计算MA
             df['ma5'] = df['close'].rolling(window=5).mean()
@@ -142,9 +150,9 @@ if analyze_button or ('df' not in st.session_state and 'stock_code' in locals())
 if 'df' in st.session_state:
     df = st.session_state.df
     stock_code = st.session_state.stock_code
+    market = st.session_state.get('market', 'A股')
     
     latest = df.iloc[-1]
-    prev = df.iloc[-1] if len(df) > 1 else latest
     
     # 交易信号判断
     buy_score = 0
@@ -223,7 +231,7 @@ if 'df' in st.session_state:
     with col1:
         st.metric("上轨", f"{latest.get('boll_upper', 0):.2f}")
     with col2:
-        st.metric("中轨", f"{latest.get('boll_mid', 0):.2f}")
+        st.metric("中轨", f"{{latest.get('boll_mid', 0):.2f}")
     with col3:
         st.metric("下轨", f"{latest.get('boll_lower', 0):.2f}")
     
