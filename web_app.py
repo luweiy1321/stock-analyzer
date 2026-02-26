@@ -110,7 +110,7 @@ if analyze_button or ('df' not in st.session_state and 'stock_code' in locals())
     with st.spinner("正在获取数据并分析..."):
         try:
             ds = AKShareDataSource()
-            df = ds.get_daily_data(full_code, "start_date.strftime("%Y-%m-%d")", datetime.now().strftime("%Y-%m-%d"))
+            df = ds.get_daily_data(full_code, start_date.strftime("%Y-%m-%d"), datetime.now().strftime("%Y-%m-%d"))
             
             if df is None or df.empty:
                 st.error(f"❌ 无法获取 {full_code} 的数据")
