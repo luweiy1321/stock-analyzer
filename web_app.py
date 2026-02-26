@@ -79,11 +79,10 @@ with st.sidebar:
     
     # 日期范围
     st.subheader("📅 日期范围")
-    end_date = st.date_input("结束日期", key="end_date"), value=datetime.now())
-    start_date = st.date_input("开始日期", key="start_date"), value=datetime.now() - timedelta(days=365))
+    
     st.subheader("📅 日期范围")
-    end_date = st.date_input("结束日期", key="end_date"), value=datetime.now())
-    start_date = st.date_input("开始日期", key="start_date"), value=datetime.now() - timedelta(days=365))
+    end_date = st.date_input("结束日期", value=datetime.now(), key="end")
+    start_date = st.date_input("开始日期", value=datetime.now() - timedelta(days=365), key="start")
     
     manual_input = st.text_input("手动输入", placeholder="如: 600519")
     if manual_input:
