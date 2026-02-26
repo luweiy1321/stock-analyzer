@@ -91,7 +91,7 @@ if analyze_button or 'df' not in st.session_state:
             else:
                 data_source_obj = YFinanceDataSource()
             
-            df = data_source_obj.get_stock_data(stock_code, start_date, end_date)
+            df = data_source_obj.get_daily_data(stock_code, start_date.strftime("%Y-%m-%d"), end_date.strftime("%Y-%m-%d"))
             
             if df is None or df.empty:
                 st.error(f"❌ 无法获取 {stock_code} 的数据，请检查股票代码是否正确")
