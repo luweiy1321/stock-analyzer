@@ -76,10 +76,6 @@ with st.sidebar:
     
     st.subheader("📊 选择股票")
     stock_code = st.selectbox("自选股", watchlist)
-    
-    # 日期范围
-    st.subheader("📅 日期范围")
-    
     st.subheader("📅 日期范围")
     end_date = st.date_input("结束日期", value=datetime.now(), key="end")
     start_date = st.date_input("开始日期", value=datetime.now() - timedelta(days=365), key="start")
