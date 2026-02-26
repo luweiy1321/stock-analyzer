@@ -11,6 +11,7 @@ import streamlit as st
 import pandas as pd
 from datetime import datetime
 import json
+from datetime import timedelta
 
 from data_source import AKShareDataSource
 
@@ -75,6 +76,15 @@ with st.sidebar:
     
     st.subheader("📊 选择股票")
     stock_code = st.selectbox("自选股", watchlist)
+    
+    # 日期范围
+    st.subheader("📅 日期范围")
+    end_date = st.date_input("结束日期", value=datetime.now())
+    start_date = st.date_input("开始日期", value=datetime.now() - timedelta(days=365))
+    st.subheader("📅 日期范围")
+    end_date = st.date_input("结束日期", value=datetime.now())
+    start_date = st.date_input("开始日期", value=datetime.now() - timedelta(days=365))
+    
     manual_input = st.text_input("手动输入", placeholder="如: 600519")
     if manual_input:
         stock_code = manual_input
@@ -105,7 +115,7 @@ if analyze_button or ('df' not in st.session_state and 'stock_code' in locals())
     with st.spinner("正在获取数据并分析..."):
         try:
             ds = AKShareDataSource()
-            df = ds.get_daily_data(full_code, "2025-01-01", datetime.now().strftime("%Y-%m-%d"))
+            df = ds.get_daily_data(full_code, "str(start_date)", datetime.now().strftime("%Y-%m-%d"))
             
             if df is None or df.empty:
                 st.error(f"❌ 无法获取 {full_code} 的数据")
