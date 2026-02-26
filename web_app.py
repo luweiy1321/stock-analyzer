@@ -231,7 +231,7 @@ if 'df' in st.session_state:
     with col1:
         st.metric("上轨", f"{latest.get('boll_upper', 0):.2f}")
     with col2:
-        st.metric("中轨", f"{{latest.get('boll_mid', 0):.2f}")
+        st.metric("中轨", f"{latest.get('boll_mid', 0):.2f}")
     with col3:
         st.metric("下轨", f"{latest.get('boll_lower', 0):.2f}")
     
