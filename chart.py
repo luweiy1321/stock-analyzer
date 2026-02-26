@@ -173,3 +173,78 @@ def plot_signal_summary(df: pd.DataFrame, stock_name: str = "", save: bool = Tru
         logger.info(f"信号图表已保存到 {filename}")
 
     return fig
+
+
+def plot_candlestick(df: pd.DataFrame, stock_name: str = ""):
+    """
+    绘制K线图 (使用Plotly)
+    
+    Args:
+        df: 包含OHLCV数据的DataFrame
+        stock_name: 股票名称
+    """
+    try:
+        import plotly.graph_objects as go
+        from plotly.subplots import make_subplots
+        
+        # 准备数据
+        df = df.copy()
+        if 'trade_date' in df.columns:
+            df['date'] = pd.to_datetime(df['trade_date'], format='%Y%m%d')
+        else:
+            df['date'] = pd.to_datetime(df.index)
+        
+        df = df.tail(60)  # 只显示最近60天
+        
+        # 创建图表
+        fig = make_subplots(rows=2, cols=1, 
+                           shared_xaxes=True,
+                           vertical_spacing=0.1,
+                           subplot_titles=('K线图', '成交量'))
+        
+        # K线
+        fig.add_trace(go.Candlestick(
+            x=df['date'],
+            open=df['open'],
+            high=df['high'],
+            low=df['low'],
+            close=df['close'],
+            name='K线'
+        ), row=1, col=1)
+        
+        # 成交量
+        colors = ['green' if df['close'].iloc[i] >= df['open'].iloc[i] else 'red' 
+                  for i in range(len(df))]
+        fig.add_trace(go.Bar(
+            x=df['date'],
+            y=df['volume'],
+            marker_color=colors,
+            name='成交量'
+        ), row=2, col=1)
+        
+        # 添加均线
+        if 'ma_short' in df.columns:
+            fig.add_trace(go.Scatter(
+                x=df['date'], y=df['ma_short'],
+                name='MA5', line=dict(color='yellow', width=1)
+            ), row=1, col=1)
+        
+        if 'ma_medium' in df.columns:
+            fig.add_trace(go.Scatter(
+                x=df['date'], y=df['ma_medium'],
+                name='MA20', line=dict(color='purple', width=1)
+            ), row=1, col=1)
+        
+        # 布局
+        fig.update_layout(
+            title=f'{stock_name} K线图',
+            xaxis_rangeslider_visible=False,
+            height=600,
+            template='plotly_dark'
+        )
+        
+        return fig
+        
+    except Exception as e:
+        logger.error(f"K线图生成失败: {e}")
+        return None
