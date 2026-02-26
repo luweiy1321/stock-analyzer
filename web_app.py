@@ -1,5 +1,5 @@
 """
-股票分析系统 - 网页应用界面 (优化版)
+股票分析系统 - 网页应用界面
 """
 import sys
 import os
@@ -9,9 +9,20 @@ sys.path.insert(0, str(Path(__file__).parent))
 
 import streamlit as st
 import pandas as pd
-from datetime import datetime, timedelta
+from datetime import datetime
+import json
+
 from data_source import AKShareDataSource
-from config import WATCHLIST, DEFAULT_STOCK_CODE, INDICATORS
+
+# 自选股文件路径
+WATCHLIST_FILE = Path(__file__).parent / "data" / "watchlist.json"
+
+# 默认自选股
+DEFAULT_WATCHLIST = [
+    "000001.SZ", "600519.SH", "600036.SH", "600900.SH",
+    "601318.SH", "300750.SZ", "300059.SZ", "002594.SZ",
+    "600410.SH", "002185.SZ", "002009.SZ"
+]
 
 # 页面配置
 st.set_page_config(
@@ -23,23 +34,62 @@ st.set_page_config(
 st.markdown('<p style="font-size:24px;font-weight:bold;color:#ff4b4b;text-align:center;">📈 股票技术分析与买卖指导系统</p>', unsafe_allow_html=True)
 st.markdown("---")
 
+# 加载自选股
+def load_watchlist():
+    if WATCHLIST_FILE.exists():
+        try:
+            return json.loads(WATCHLIST_FILE.read_text())
+        except:
+            pass
+    return DEFAULT_WATCHLIST.copy()
+
+def save_watchlist(watchlist):
+    WATCHLIST_FILE.parent.mkdir(parents=True, exist_ok=True)
+    WATCHLIST_FILE.write_text(json.dumps(watchlist, ensure_ascii=False, indent=2))
+
 # 侧边栏
 with st.sidebar:
     st.header("⚙️ 设置")
     
-    # 股票代码输入
-    stock_code = st.text_input("股票代码", value="600519.SH")
+    # 加载自选股
+    watchlist = load_watchlist()
     
-    # 快速选择自选股
-    st.subheader("⭐ 自选股")
-    selected_watchlist = st.selectbox("快速选择", [""] + WATCHLIST)
-    if selected_watchlist:
-        stock_code = selected_watchlist
+    # 添加自选股
+    st.subheader("➕ 添加股票")
+    new_stock = st.text_input("输入股票代码", placeholder="如: 600519.SH")
+    if st.button("添加"):
+        if new_stock and new_stock not in watchlist:
+            watchlist.append(new_stock)
+            save_watchlist(watchlist)
+            st.success(f"已添加 {new_stock}")
+            st.rerun()
+    
+    # 删除自选股
+    st.subheader("🗑️ 删除股票")
+    stock_to_delete = st.selectbox("选择要删除的股票", [""] + watchlist)
+    if st.button("删除"):
+        if stock_to_delete and stock_to_delete in watchlist:
+            watchlist.remove(stock_to_delete)
+            save_watchlist(watchlist)
+            st.success(f"已删除 {stock_to_delete}")
+            st.rerun()
+    
+    # 选择股票分析
+    st.subheader("📊 选择股票")
+    stock_code = st.selectbox("自选股", watchlist)
+    
+    # 也支持手动输入
+    manual_input = st.text_input("或手动输入代码", placeholder="如: 600519.SH")
+    if manual_input:
+        stock_code = manual_input
     
     analyze_button = st.button("🚀 开始分析", type="primary", use_container_width=True)
 
 # 主内容区
-if analyze_button or 'df' not in st.session_state:
+if analyze_button or ('df' not in st.session_state and 'stock_code' in locals()):
+    if 'stock_code' not in locals() or not stock_code:
+        stock_code = "600519.SH"
+    
     with st.spinner("正在获取数据并分析..."):
         try:
             ds = AKShareDataSource()
@@ -94,7 +144,7 @@ if 'df' in st.session_state:
     stock_code = st.session_state.stock_code
     
     latest = df.iloc[-1]
-    prev = df.iloc[-2] if len(df) > 1 else latest
+    prev = df.iloc[-1] if len(df) > 1 else latest
     
     # 交易信号判断
     buy_score = 0
@@ -121,12 +171,12 @@ if 'df' in st.session_state:
     
     # MACD信号
     macd_signal = "震荡"
-    if latest.get('macd', 0) > latest.get('signal', 0) and prev.get('macd', 0) <= prev.get('signal', 0):
-        macd_signal = "金叉"
-        buy_score += 3
-    elif latest.get('macd', 0) < latest.get('signal', 0) and prev.get('macd', 0) >= prev.get('signal', 0):
-        macd_signal = "死叉"
-        sell_score += 3
+    if latest.get('macd', 0) > latest.get('signal', 0):
+        macd_signal = "多头"
+        buy_score += 1
+    else:
+        macd_signal = "空头"
+        sell_score += 1
     
     # KDJ信号
     k = latest.get('k', 50)
@@ -146,7 +196,7 @@ if 'df' in st.session_state:
     else:
         overall = "🟡 持有"
     
-    st.subheader("🎯 交易建议")
+    st.subheader(f"🎯 {stock_code} 交易建议")
     col1, col2, col3, col4 = st.columns(4)
     with col1:
         st.metric("当前价", f"{latest.get('close', 0):.2f}")
