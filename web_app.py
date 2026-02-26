@@ -9,9 +9,8 @@ sys.path.insert(0, str(Path(__file__).parent))
 
 import streamlit as st
 import pandas as pd
-from datetime import datetime
+from datetime import datetime, timedelta
 import json
-from datetime import timedelta
 
 from data_source import AKShareDataSource
 
@@ -19,12 +18,25 @@ from data_source import AKShareDataSource
 WATCHLIST_FILE = Path(__file__).parent / "data"
 WATCHLIST_FILE.mkdir(parents=True, exist_ok=True)
 
-# 默认自选股
-DEFAULT_WATCHLIST = ["000001", "600519", "600036", "600900", "601318", "300750", "300059", "600410", "002185", "002009"]
+# 股票名称映射
+STOCK_NAMES = {
+    "000001.SZ": "平安银行", "600519.SH": "贵州茅台", "600036.SH": "招商银行",
+    "600900.SH": "长江电力", "601318.SH": "中国平安", "300750.SZ": "宁德时代",
+    "300059.SZ": "东方财富", "600410.SH": "华胜天成", "002185.SZ": "华天科技",
+    "002009.SZ": "天奇股份", "002594.SZ": "比亚迪", "000002.SZ": "万科A",
+    "601888.SH": "中国中免", "600016.SH": "民生银行", "600030.SH": "中信证券",
+    "600031.SH": "三一重工", "600887.SH": "伊利股份", "688981.SH": "中芯国际",
+    "002475.SZ": "立讯精密", "002230.SZ": "科大讯飞", "000333.SZ": "美的集团",
+    "000651.SZ": "格力电器", "000858.SZ": "五粮液", "002371.SZ": "北方华创",
+}
 
 # 股票代码自动加后缀
 STOCK_MARKET_MAP = {
-    "600000": "SH", "600036": "SH", "600519": "SH", "600900": "SH", "600410": "SH", "601318": "SH", "601888": "SH", "600016": "SH", "600030": "SH", "600031": "SH", "600887": "SH", "688981": "SH", "688111": "SH", "688036": "SH", "688008": "SH", "688005": "SH", "688399": "SH", "688001": "SH", "688169": "SH", "688328": "SH", "688027": "SH", "688066": "SH", "000001": "SZ", "000002": "SZ", "000063": "SZ", "000333": "SZ", "000651": "SZ", "000858": "SZ", "000725": "SZ", "300750": "SZ", "300059": "SZ", "300015": "SZ", "300033": "SZ", "300122": "SZ", "300124": "SZ", "300347": "SZ", "300308": "SZ", "300364": "SZ", "300251": "SZ", "300666": "SZ", "002594": "SZ", "002475": "SZ", "002185": "SZ", "002009": "SZ", "002230": "SZ", "002050": "SZ", "002027": "SZ", "002044": "SZ", "002371": "SZ", "002415": "SZ", "002049": "SZ", "002456": "SZ", "002736": "SZ",
+    "600000": "SH", "600036": "SH", "600519": "SH", "600900": "SH", "600410": "SH", 
+    "601318": "SH", "601888": "SH", "600016": "SH", "600030": "SH", "600031": "SH", 
+    "600887": "SH", "688981": "SH", "000001": "SZ", "000002": "SZ", "000333": "SZ", 
+    "000651": "SZ", "000858": "SZ", "300750": "SZ", "300059": "SZ", "002594": "SZ", 
+    "002475": "SZ", "002185": "SZ", "002009": "SZ", "002230": "SZ", "002371": "SZ",
 }
 
 def detect_market(code):
@@ -35,34 +47,41 @@ def detect_market(code):
         return code + ".SH"
     return code + ".SZ"
 
+def get_stock_name(full_code):
+    return STOCK_NAMES.get(full_code, full_code)
+
 # 页面配置
 st.set_page_config(page_title="股票技术分析系统", page_icon="📈", layout="wide")
 st.markdown('<p style="font-size:24px;font-weight:bold;color:#ff4b4b;text-align:center;">📈 股票技术分析与买卖指导系统</p>', unsafe_allow_html=True)
 st.markdown("---")
 
-def load_watchlist():
-    f = WATCHLIST_FILE / "watchlist.json"
+def load_watchlist(market):
+    f = WATCHLIST_FILE / f"watchlist_{market}.json"
     if f.exists():
         try: return json.loads(f.read_text())
         except: pass
-    return DEFAULT_WATCHLIST.copy()
+    return {"SH": ["600519", "600036", "600900", "601318", "600410"], "SZ": ["000001", "300750", "300059", "002185", "002009"]}.get(market, [])
 
-def save_watchlist(watchlist):
-    f = WATCHLIST_FILE / "watchlist.json"
+def save_watchlist(market, watchlist):
+    f = WATCHLIST_FILE / f"watchlist_{market}.json"
     f.write_text(json.dumps(watchlist, ensure_ascii=False, indent=2))
 
 # 侧边栏
 with st.sidebar:
     st.header("⚙️ 设置")
     
-    watchlist = load_watchlist()
+    # 市场选择
+    market = st.radio("📡 市场", ["沪市A股", "深市A股"], horizontal=True)
+    market_key = "SH" if "沪" in market else "SZ"
+    
+    watchlist = load_watchlist(market_key)
     
     st.subheader("➕ 添加股票")
     new_stock = st.text_input("输入股票代码", placeholder="如: 600519")
     if st.button("添加"):
         if new_stock and new_stock not in watchlist:
             watchlist.append(new_stock)
-            save_watchlist(watchlist)
+            save_watchlist(market_key, watchlist)
             st.success(f"已添加 {detect_market(new_stock)}")
             st.rerun()
     
@@ -71,18 +90,18 @@ with st.sidebar:
     if st.button("删除"):
         if stock_to_delete and stock_to_delete in watchlist:
             watchlist.remove(stock_to_delete)
-            save_watchlist(watchlist)
+            save_watchlist(market_key, watchlist)
             st.rerun()
     
     st.subheader("📊 选择股票")
     stock_code = st.selectbox("自选股", watchlist)
-    st.subheader("📅 日期范围")
-    end_date = st.date_input("结束日期", value=datetime.now(), key="end")
-    start_date = st.date_input("开始日期", value=datetime.now() - timedelta(days=365), key="start")
-    
     manual_input = st.text_input("手动输入", placeholder="如: 600519")
     if manual_input:
         stock_code = manual_input
+    
+    st.subheader("📅 日期范围")
+    end_date = st.date_input("结束日期", value=datetime.now(), key="end")
+    start_date = st.date_input("开始日期", value=datetime.now() - timedelta(days=365), key="start")
     
     st.markdown("---")
     st.subheader("📐 指标参数")
@@ -110,7 +129,7 @@ if analyze_button or ('df' not in st.session_state and 'stock_code' in locals())
     with st.spinner("正在获取数据并分析..."):
         try:
             ds = AKShareDataSource()
-            df = ds.get_daily_data(full_code, start_date.strftime("%Y-%m-%d"), datetime.now().strftime("%Y-%m-%d"))
+            df = ds.get_daily_data(full_code, start_date.strftime("%Y-%m-%d"), end_date.strftime("%Y-%m-%d"))
             
             if df is None or df.empty:
                 st.error(f"❌ 无法获取 {full_code} 的数据")
@@ -158,6 +177,7 @@ if analyze_button or ('df' not in st.session_state and 'stock_code' in locals())
 if 'df' in st.session_state:
     df = st.session_state.df
     full_code = st.session_state.get('full_code', '')
+    stock_name = get_stock_name(full_code)
     latest = df.iloc[-1]
     
     buy_score = 0
@@ -204,7 +224,7 @@ if 'df' in st.session_state:
     else:
         overall = "🟡 持有"
     
-    st.subheader(f"🎯 {full_code} 交易建议")
+    st.subheader(f"🎯 {stock_name} ({full_code}) 交易建议")
     col1, col2, col3, col4 = st.columns(4)
     with col1: st.metric("当前价", f"{latest.get('close', 0):.2f}")
     with col2: st.metric("买入评分", f"{buy_score}/10", delta="🟢 买入" if buy_score > buy_threshold else None)
