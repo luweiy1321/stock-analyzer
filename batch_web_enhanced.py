@@ -59,7 +59,7 @@ st.title("📊 批量股票分析系统")
 # 顶部导航链接
 col1, col2, col3 = st.columns([3, 1, 1])
 with col2:
-    st.link_button("📈 实时监控", "https://mytool1.streamlit.app/", use_container_width=True)
+    st.link_button("📈 单股分析", "http://localhost:8501", use_container_width=True)
 with col3:
     if st.button("🏠 刷新", use_container_width=True):
         st.rerun()

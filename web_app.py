@@ -18,6 +18,27 @@ from data_source import AKShareDataSource, YFinanceDataSource
 WATCHLIST_FILE = Path(__file__).parent / "data"
 WATCHLIST_FILE.mkdir(parents=True, exist_ok=True)
 
+# 密码保护
+CORRECT_PASSWORD = "stock2026"
+
+# 初始化登录状态
+if 'authenticated' not in st.session_state:
+    st.session_state['authenticated'] = False
+
+# 密码验证
+if not st.session_state['authenticated']:
+    st.markdown("## 🔐 请先登录")
+    password = st.text_input("请输入访问密码", type="password", key="login_password")
+    
+    if st.button("登录", type="primary", use_container_width=True):
+        if password == CORRECT_PASSWORD:
+            st.session_state['authenticated'] = True
+            st.rerun()
+        else:
+            st.error("密码错误，请重试")
+    
+    st.stop()
+
 # 股票名称映射
 STOCK_NAMES = {
     "000001.SZ": "平安银行", "600519.SH": "贵州茅台", "600036.SH": "招商银行",

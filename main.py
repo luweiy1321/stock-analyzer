@@ -8,7 +8,7 @@ from pathlib import Path
 # 添加项目根目录到路径
 sys.path.insert(0, str(Path(__file__).parent))
 
-from data_source import TushareDataSource, YFinanceDataSource
+from data_source import YFinanceDataSource, AKShareDataSource
 from analysis import SignalAnalyzer
 from chart import plot_stock_analysis, plot_signal_summary
 from config import DEFAULT_STOCK_CODE
@@ -25,7 +25,7 @@ def print_banner():
 ║        [股票技术分析与买卖指导系统]                          ║
 ║                                                           ║
 ║        支持指标: MA, RSI, MACD, KDJ                      ║
-║        数据来源: Yahoo Finance (免费)                      ║
+║        数据来源: AKShare (A股), Yahoo Finance             ║
 ║                                                           ║
 ╚═══════════════════════════════════════════════════════════╝
     """
@@ -45,12 +45,12 @@ def analyze_stock(stock_code: str, start_date: str = None, end_date: str = None,
     logger.info(f"开始分析股票: {stock_code}")
 
     try:
-        # 1. 获取数据 - 默认使用 Yahoo Finance
+        # 1. 获取数据 - 默认使用 AKShare (A股数据)
         if use_tushare:
-            print("\n[使用 Tushare 数据源...]")
-            data_source = TushareDataSource()
+            print("\n[使用 AKShare 数据源 (A股)]...")
+            data_source = AKShareDataSource()
             df = data_source.get_daily_data(stock_code, start_date, end_date)
-            stock_info = data_source.get_stock_basic(stock_code)
+            stock_info = data_source.get_stock_info(stock_code)
             stock_name = stock_info.get('name', stock_code)
         else:
             print("\n[使用 Yahoo Finance 数据源...]")
