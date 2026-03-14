@@ -1,7 +1,7 @@
-streamlit
-pandas
-yfinance
-numpy
-plotly
-akshare
-matplotlib
+streamlit>=1.28.0
+pandas>=2.0.0
+yfinance>=0.2.0
+numpy>=1.24.0
+plotly>=5.18.0
+akshare>=1.12.0
+matplotlib>=3.8.0
